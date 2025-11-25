@@ -8,6 +8,13 @@ class Node:
         self.value = value
 
 
+class Sentinel:
+    pass
+
+
+TOMBSTONE = Sentinel()
+
+
 class Dictionary:
     def __init__(self) -> None:
         self.hash_table: List[Optional[Node]] = [None] * 8
@@ -17,23 +24,34 @@ class Dictionary:
     def _probe(self, key: Hashable, for_insert: bool = False) -> int:
         index = hash(key) % self.capacity
         start_index = index
+        first_tombstone_index = -1
 
         while True:
-            node = self.hash_table[index]
+            current_slot = self.hash_table[index]
 
-            if node is None:
+            if current_slot is None:
+                if for_insert and first_tombstone_index != -1:
+                    return first_tombstone_index
                 return index if for_insert else -1
 
-            if node.key == key and node.hash_key == hash(key):
+            if current_slot is TOMBSTONE:
+                if for_insert and first_tombstone_index == -1:
+                    first_tombstone_index = index
+
+            elif (current_slot.key == key and current_slot.hash_key
+                  == hash(key)):
                 return index
 
             index = (index + 1) % self.capacity
 
             if index == start_index:
+                if for_insert and first_tombstone_index != -1:
+                    return first_tombstone_index
                 return index if for_insert else -1
 
     def __resize_hash_table(self) -> None:
-        old_nodes = [node for node in self.hash_table if node is not None]
+        old_nodes = [node for node in self.hash_table
+                     if node is not None and node is not TOMBSTONE]
         self.capacity *= 2
         self.hash_table = [None] * self.capacity
         self.current_size = 0
@@ -72,7 +90,7 @@ class Dictionary:
         if index == -1 or self.hash_table[index] is None:
             raise KeyError(key)
 
-        self.hash_table[index] = None
+        self.hash_table[index] = TOMBSTONE
         self.current_size -= 1
 
     def get(self, key: Hashable, default_value: Any = None) -> Any:
